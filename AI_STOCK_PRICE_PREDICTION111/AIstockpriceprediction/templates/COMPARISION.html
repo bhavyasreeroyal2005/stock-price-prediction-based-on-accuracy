@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Price Predictor - {{ current_user.preferred_algorithm if current_user.is_authenticated else 'LSTM' }} AI (INR)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .search-section {
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .forecast-input {
+            flex: 0 0 150px;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .forecast-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            padding: 40px;
+            display: none;
+        }
+
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container h3 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .predictions-table {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+        }
+
+        th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .download-section {
+            text-align: center;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 40px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+        }
+
+        .examples h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .example-ticker {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .example-ticker:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .year-selector {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .year-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .year-btn:hover, .year-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .pagination button:hover, .pagination button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            margin: 0 15px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .show-all {
+            background: white;
+            border: 2px solid #28a745;
+            color: #28a745;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-left: 15px;
+        }
+
+        .show-all:hover {
+            background: #28a745;
+            color: white;
+        }
+
+        .live-prices-section {
+            padding: 30px 40px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-bottom: 2px solid #ddd;
+        }
+
+        .live-prices-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .live-prices-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .live-price-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 4px solid;
+        }
+
+        .live-price-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .live-price-card.gold {
+            border-left-color: #ffd700;
+        }
+
+        .live-price-card.silver {
+            border-left-color: #c0c0c0;
+        }
+
+        .live-price-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .live-price-header h3 {
+            font-size: 1.2em;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .live-price-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .live-price-change {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .live-price-change.positive {
+            color: #28a745;
+        }
+
+        .live-price-change.negative {
+            color: #dc3545;
+        }
+
+        .live-price-change.neutral {
+            color: #6c757d;
+        }
+
+        .live-price-currency {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .live-price-update-time {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .loading-prices {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .live-price-card.loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>📈 Stock Price Predictor - {{ current_user.preferred_algorithm if current_user.is_authenticated else 'LSTM' }} AI (INR)</h1>
+                    <p>{% if current_user.is_authenticated and current_user.preferred_algorithm == 'Linear Regression' %}Machine Learning Powered Stock Price Predictions with Custom Forecast Period{% else %}Deep Learning Powered Stock Price Predictions with Custom Forecast Period{% endif %}</p>
+                </div>
+                <div class="auth-buttons" style="display:flex; align-items:center; gap:10px;">
+                    {% if current_user.is_authenticated %}
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="color: white; font-weight: 600;">Welcome, {{ current_user.first_name }}!</span>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Dashboard</a>
+                            <a href="{{ url_for('logout') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Logout</a>
+                        </div>
+                    {% else %}
+                        <div style="display: flex; gap: 10px;">
+                            <a href="{{ url_for('login') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Login</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Register</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="live-prices-section">
+            <h2>💰 Live Precious Metals Prices</h2>
+            <div class="live-prices-container" id="livePricesContainer">
+                <div class="live-price-card gold loading">
+                    <div class="live-price-header">
+                        <h3>🥇 Gold (24k, Bengaluru)</h3>
+                    </div>
+                    <div class="live-price-value" id="goldPrice">Loading...</div>
+                    <div class="live-price-change" id="goldChange">-</div>
+                    <div class="live-price-currency" id="goldCurrency">INR per 10g</div>
+                    <div class="live-price-update-time" id="goldUpdateTime">Updating...</div>
+                </div>
+                <div class="live-price-card silver loading">
+                    <div class="live-price-header">
+                        <h3>🥈 Silver (Bengaluru)</h3>
+                    </div>
+                    <div class="live-price-value" id="silverPrice">Loading...</div>
+                    <div class="live-price-change" id="silverChange">-</div>
+                    <div class="live-price-currency" id="silverCurrency">INR per 10g</div>
+                    <div class="live-price-update-time" id="silverUpdateTime">Updating...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="search-section">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages" style="margin-bottom: 20px;">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}" style="padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; font-weight: 600;">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="search-box">
+                <input type="text" id="tickerInput" placeholder="Enter stock/commodity/MF scheme code (e.g., RELIANCE.NS, AAPL, 118989)" autocomplete="off">
+                <input type="number" id="forecastDays" class="forecast-input" placeholder="Days" value="30" min="1" max="365">
+                <button class="btn btn-primary" onclick="searchStock()">Search</button>
+            </div>
+
+            <div class="examples">
+                <h3>Try these examples:</h3>
+                <div style="margin-bottom: 15px;">
+                    <strong style="color: #667eea;">Gold & Silver:</strong>
+                    <span class="example-ticker" onclick="searchExample('GOLD', 30)">Gold (GOLD)</span>
+                    <span class="example-ticker" onclick="searchExample('SILVER', 30)">Silver (SILVER)</span>
+                    <span class="example-ticker" onclick="searchExample('GC=F', 60)">Gold Futures</span>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong style="color: #667eea;">Indian Stocks:</strong>
+                    <span class="example-ticker" onclick="searchExample('RELIANCE.NS', 30)">Reliance</span>
+                    <span class="example-ticker" onclick="searchExample('HDFCBANK.NS', 60)">HDFC Bank</span>
+                    <span class="example-ticker" onclick="searchExample('TCS.NS', 30)">TCS</span>
+                    <span class="example-ticker" onclick="searchExample('INFY.NS', 30)">Infosys</span>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong style="color: #667eea;">Indian Mutual Funds:</strong>
+                    <span class="example-ticker" onclick="searchExample('118989', 30)">HDFC Mid-Cap Fund</span>
+                    <span class="example-ticker" onclick="searchExample('120503', 30)">SBI Bluechip Fund</span>
+                    <span class="example-ticker" onclick="searchExample('119533', 30)">Kotak Bluechip Fund</span>
+                    <span class="example-ticker" onclick="searchExample('120465', 30)">ICICI Prudential Fund</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p id="loadingText">{% if current_user.is_authenticated and current_user.preferred_algorithm == 'Linear Regression' %}Training Linear Regression model and generating predictions... This may take a moment.{% else %}Training LSTM model and generating predictions... This may take a moment.{% endif %}</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let charts = [];
+        let currentPage = 1;
+        let itemsPerPage = 30;
+        let showAllMode = false;
+        let selectedYear = null;
+        let priceUpdateInterval = null;
+
+        const tickerInput = document.getElementById('tickerInput');
+
+        // Function to fetch and update live prices
+        async function updateLivePrices() {
+            try {
+                const response = await fetch('/api/live-prices');
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update Gold price
+                    const goldCard = document.querySelector('.live-price-card.gold');
+                    if (data.gold && data.gold.price !== null) {
+                        document.getElementById('goldPrice').textContent = `₹${data.gold.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        
+                        const goldChangeEl = document.getElementById('goldChange');
+                        if (data.gold.change !== null && data.gold.change_percent !== null) {
+                            const changeClass = data.gold.change > 0 ? 'positive' : (data.gold.change < 0 ? 'negative' : 'neutral');
+                            const changeSymbol = data.gold.change > 0 ? '▲' : (data.gold.change < 0 ? '▼' : '—');
+                            goldChangeEl.className = `live-price-change ${changeClass}`;
+                            goldChangeEl.innerHTML = `${changeSymbol} ₹${Math.abs(data.gold.change).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.abs(data.gold.change_percent).toFixed(2)}%)`;
+                        } else {
+                            goldChangeEl.textContent = '—';
+                            goldChangeEl.className = 'live-price-change neutral';
+                        }
+                        
+                        document.getElementById('goldUpdateTime').textContent = `Updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+                        goldCard.classList.remove('loading');
+                    } else {
+                        document.getElementById('goldPrice').textContent = 'N/A';
+                        document.getElementById('goldChange').textContent = 'Data unavailable';
+                        document.getElementById('goldChange').className = 'live-price-change neutral';
+                        goldCard.classList.remove('loading');
+                    }
+
+                    // Update Silver price
+                    const silverCard = document.querySelector('.live-price-card.silver');
+                    if (data.silver && data.silver.price !== null) {
+                        document.getElementById('silverPrice').textContent = `₹${data.silver.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        
+                        const silverChangeEl = document.getElementById('silverChange');
+                        if (data.silver.change !== null && data.silver.change_percent !== null) {
+                            const changeClass = data.silver.change > 0 ? 'positive' : (data.silver.change < 0 ? 'negative' : 'neutral');
+                            const changeSymbol = data.silver.change > 0 ? '▲' : (data.silver.change < 0 ? '▼' : '—');
+                            silverChangeEl.className = `live-price-change ${changeClass}`;
+                            silverChangeEl.innerHTML = `${changeSymbol} ₹${Math.abs(data.silver.change).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${Math.abs(data.silver.change_percent).toFixed(2)}%)`;
+                        } else {
+                            silverChangeEl.textContent = '—';
+                            silverChangeEl.className = 'live-price-change neutral';
+                        }
+                        
+                        document.getElementById('silverUpdateTime').textContent = `Updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+                        silverCard.classList.remove('loading');
+                    } else {
+                        document.getElementById('silverPrice').textContent = 'N/A';
+                        document.getElementById('silverChange').textContent = 'Data unavailable';
+                        document.getElementById('silverChange').className = 'live-price-change neutral';
+                        silverCard.classList.remove('loading');
+                    }
+                } else {
+                    // Handle error
+                    const goldCard = document.querySelector('.live-price-card.gold');
+                    const silverCard = document.querySelector('.live-price-card.silver');
+                    document.getElementById('goldPrice').textContent = 'Error';
+                    document.getElementById('silverPrice').textContent = 'Error';
+                    goldCard.classList.remove('loading');
+                    silverCard.classList.remove('loading');
+                }
+            } catch (error) {
+                console.error('Error fetching live prices:', error);
+                const goldCard = document.querySelector('.live-price-card.gold');
+                const silverCard = document.querySelector('.live-price-card.silver');
+                document.getElementById('goldPrice').textContent = 'Error';
+                document.getElementById('silverPrice').textContent = 'Error';
+                goldCard.classList.remove('loading');
+                silverCard.classList.remove('loading');
+            }
+        }
+
+        // Initialize live prices on page load
+        updateLivePrices();
+
+        // Update prices every 30 seconds
+        priceUpdateInterval = setInterval(updateLivePrices, 30000);
+
+        // Clean up interval when page is unloaded
+        window.addEventListener('beforeunload', () => {
+            if (priceUpdateInterval) {
+                clearInterval(priceUpdateInterval);
+            }
+        });
+        
+        tickerInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchStock();
+            }
+        });
+
+        function searchExample(ticker, days) {
+            tickerInput.value = ticker;
+            document.getElementById('forecastDays').value = days;
+            searchStock();
+        }
+
+        async function searchStock() {
+            const ticker = tickerInput.value.trim().toUpperCase();
+            const forecastDays = parseInt(document.getElementById('forecastDays').value) || 30;
+            
+            if (!ticker) {
+                alert('Please enter a stock symbol');
+                return;
+            }
+
+            if (forecastDays < 1 || forecastDays > 365) {
+                alert('Forecast days must be between 1 and 365');
+                return;
+            }
+
+            // Basic validation for common invalid patterns
+            if (ticker.includes(' ') || ticker.length < 1 || ticker.length > 10) {
+                alert('Invalid symbol format. Please use valid stock symbols like AAPL, RELIANCE.NS, or mutual fund scheme codes like 118989.');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('results').innerHTML = '';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ticker: ticker, forecast_days: forecastDays })
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loading').style.display = 'none';
+
+                if (data.error) {
+                    if (data.error.includes('login') || data.error.includes('authentication')) {
+                        showError('Please login to make predictions. <a href="/login" style="color: #667eea;">Click here to login</a>');
+                    } else {
+                        showError(data.error);
+                    }
+                } else {
+                    currentData = data;
+                    showResults(data);
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Network error: ${error.message}. Please check if the server is running and try again.`);
+                console.error('Error:', error);
+            }
+        }
+
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        function showResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+
+            // Destroy existing charts
+            charts.forEach(chart => chart.destroy());
+            charts = [];
+            currentPage = 1;
+            showAllMode = false;
+            selectedYear = null;
+
+            // Reset page when new data arrives
+            renderTable(data);
+        }
+
+        function renderTable(data) {
+            const resultsDiv = document.getElementById('results');
+            
+            // Calculate pagination
+            const filteredPreds = selectedYear ? data.predictions.filter(p => p.Year === selectedYear) : data.predictions;
+            const totalItems = filteredPreds.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            // Get data for current page
+            const startIndex = showAllMode ? 0 : (currentPage - 1) * itemsPerPage;
+            const endIndex = showAllMode ? totalItems : startIndex + itemsPerPage;
+            const pageData = filteredPreds.slice(startIndex, endIndex);
+
+            let tableRows = '';
+            pageData.forEach((pred, index) => {
+                const date = new Date(pred.Date);
+                const displayIndex = showAllMode ? startIndex + index + 1 : (currentPage - 1) * itemsPerPage + index + 1;
+                tableRows += `
+                    <tr>
+                        <td>${displayIndex}</td>
+                        <td>${date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${pred.Year}</td>
+                        <td>₹${pred.Predicted_Price.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            const predictionDate = new Date(filteredPreds[0].Date);
+            const endDate = new Date(filteredPreds[filteredPreds.length - 1].Date);
+            
+            // Get unique years
+            const years = [...new Set(data.predictions.map(p => p.Year))];
+            
+            resultsDiv.innerHTML = `
+                 <div class="info-cards">
+                     <div class="info-card">
+                         <h3>${data.asset_type || 'Stock'} Symbol</h3>
+                         <div class="value">${data.ticker}</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Current ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'}</h3>
+                         <div class="value">₹${data.current_price}</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Forecast Period</h3>
+                         <div class="value" style="font-size: 0.9em;">${data.forecast_days} days</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Prediction Accuracy</h3>
+                         <div class="value">${data.accuracy}%</div>
+                     </div>
+                 </div>
+
+                <div class="chart-container">
+                    <div style="display:flex; justify-content: space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <h3>📊 ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'} Prediction Chart (Historical & Forecast)</h3>
+                        ${years.length > 0 ? `
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <div id="yearButtons" style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <button class="btn" data-year="" style="padding:8px 12px; background:#fff; border:2px solid #667eea; color:#667eea; border-radius:8px; ${selectedYear===null?'background:#667eea;color:#fff;':''}">All</button>
+                                ${years.filter(y => y >= 2020).sort((a,b)=>b-a).map(y => `
+                                    <button class="btn" data-year="${y}" style="padding:8px 12px; background:#fff; border:2px solid #667eea; color:#667eea; border-radius:8px; ${selectedYear===y?'background:#667eea;color:#fff;':''}">${y}</button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <canvas id="mainChart"></canvas>
+                </div>
+
+                ${years.length > 1 ? `
+                <div class="chart-container">
+                    <h3>📅 Year-Wise Predictions</h3>
+                    <div class="year-selector" id="yearSelector"></div>
+                    <canvas id="yearChart"></canvas>
+                </div>
+                ` : ''}
+
+                <div class="predictions-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Year</th>
+                                <th>Predicted ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="predictionsTableBody">
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${totalItems > itemsPerPage && !showAllMode ? `
+                <div class="pagination">
+                    <button onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+                    <button onclick="changePage(${Math.max(1, currentPage - 1)})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <span class="pagination-info">Page ${currentPage} of ${totalPages} (${totalItems} items)</span>
+                    <button onclick="changePage(${Math.min(totalPages, currentPage + 1)})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                    <button onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+                    <button class="show-all" onclick="toggleShowAll()">Show All</button>
+                </div>
+                ` : totalItems > itemsPerPage && showAllMode ? `
+                <div class="pagination">
+                    <button onclick="toggleShowAll()" class="show-all">Show Paginated View</button>
+                    <span class="pagination-info">Showing all ${totalItems} items</span>
+                </div>
+                ` : ''}
+
+                <div class="download-section">
+                    <button class="btn btn-success" onclick="downloadCSV('${data.ticker}')">
+                        📥 Download Predictions CSV
+                    </button>
+                </div>
+            `;
+
+            // Draw main chart
+            drawMainChart(data);
+            
+            // Draw year-wise chart if multiple years
+            if (years.length > 1) {
+                drawYearSelector(years);
+                drawYearChart(data, years[0]);
+            }
+
+            // Hook year buttons
+            const yearButtons = document.getElementById('yearButtons');
+            if (yearButtons) {
+                yearButtons.querySelectorAll('button').forEach(btn => {
+                    btn.onclick = () => {
+                        const yr = btn.getAttribute('data-year');
+                        selectedYear = yr ? parseInt(yr) : null;
+                        currentPage = 1;
+                        renderTable(currentData);
+                    };
+                });
+            }
+
+            window.placeOrderInline = async function(assetType, side, symbol){
+                try {
+                    const qtyEl = document.getElementById('tradeQty');
+                    const priceEl = document.getElementById('tradePrice');
+                    const quantity = parseFloat(qtyEl.value);
+                    const price = parseFloat(priceEl.value);
+                    if (!symbol || !(quantity>0) || !(price>0)){
+                        alert('Please enter valid quantity and price.');
+                        return;
+                    }
+                    const res = await fetch('/orders', {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ asset_type: assetType, symbol, side, quantity, price })
+                    });
+                    const resp = await res.json();
+                    if(!res.ok){
+                        alert(resp.error || 'Order failed');
+                        return;
+                    }
+                    alert('Order placed successfully');
+                } catch(err){
+                    console.error(err);
+                    alert('Order failed');
+                }
+            }
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            renderTable(currentData);
+            // Scroll to top of table
+            document.getElementById('predictionsTableBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function toggleShowAll() {
+            showAllMode = !showAllMode;
+            currentPage = 1;
+            renderTable(currentData);
+            document.getElementById('predictionsTableBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function drawMainChart(data) {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            
+            // Prepare historical data
+            const historical = data.historical || [];
+            const predictions = data.predictions;
+            
+            const historicalDates = historical.map(h => h.Date);
+            const historicalPrices = historical.map(h => h.Close);
+            
+            const predictionDates = predictions.map(p => p.Date);
+            const predictionPrices = predictions.map(p => p.Predicted_Price);
+            
+            charts.push(new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [...historicalDates, ...predictionDates],
+                    datasets: [{
+                        label: 'Historical Price',
+                        data: [...historicalPrices, ...Array(predictionDates.length).fill(null)],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderWidth: 2,
+                        fill: false
+                    }, {
+                        label: 'Predicted Price',
+                        data: [...Array(historicalDates.length).fill(null), ...predictionPrices],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderWidth: 2,
+                        fill: false,
+                        borderDash: [5, 5]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Historical & Predicted Stock Prices'
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        function drawYearSelector(years) {
+            const selector = document.getElementById('yearSelector');
+            selector.innerHTML = '';
+            
+            years.forEach((year, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'year-btn' + (index === 0 ? ' active' : '');
+                btn.textContent = year;
+                btn.onclick = () => {
+                    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    drawYearChart(currentData, year);
+                };
+                selector.appendChild(btn);
+            });
+        }
+
+        function drawYearChart(data, year) {
+            // Destroy existing year chart
+            if (charts.length > 1) {
+                charts[charts.length - 1].destroy();
+                charts = charts.slice(0, -1);
+            }
+
+            const filteredData = data.predictions.filter(p => p.Year === year);
+            
+            if (filteredData.length === 0) return;
+            
+            const ctx = document.getElementById('yearChart').getContext('2d');
+            
+            charts.push(new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: filteredData.map(p => new Date(p.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: `Predicted Price for ${year}`,
+                        data: filteredData.map(p => p.Predicted_Price),
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Price Predictions for Year ${year}`
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        async function downloadCSV(ticker) {
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        ticker: ticker,
+                        forecast_days: currentData.forecast_days 
+                    })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${ticker}_predictions.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Error downloading file');
+                }
+            } catch (error) {
+                alert('Error downloading file');
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

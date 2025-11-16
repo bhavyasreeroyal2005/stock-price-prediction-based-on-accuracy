@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Dashboard - Stock Price Predictor</title>
+	<style>
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; }
+		.navbar {
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			padding: 15px 25px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.navbar a { color: white; text-decoration: none; font-weight: 600; }
+		.container { max-width: 1400px; margin: 20px auto; padding: 0 20px; }
+		.tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+		.tab-btn {
+			padding: 10px 18px;
+			border: 2px solid #667eea;
+			background: white;
+			color: #667eea;
+			border-radius: 8px;
+			cursor: pointer;
+			font-weight: 600;
+		}
+		.tab-btn.active, .tab-btn:hover { background: #667eea; color: white; }
+		.card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+		.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+		.section { display: none; }
+		.section.active { display: block; }
+		.table { width: 100%; border-collapse: collapse; }
+		.table th, .table td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+		.table thead { background: #fafbff; }
+	</style>
+</head>
+<body>
+	<div class="navbar">
+		<div>
+			<a href="{{ url_for('dashboard') }}" style="font-size: 1.1em;">🏠 Dashboard</a>
+		</div>
+		<div style="display: flex; align-items: center; gap: 15px;">
+			<span>Welcome, {{ current_user.first_name }}!</span>
+			<a href="{{ url_for('logout') }}">Logout</a>
+		</div>
+	</div>
+	<div class="container">
+		<div class="tabs">
+			<button class="tab-btn active" onclick="showTab('home')">Home</button>
+			<button class="tab-btn" onclick="showTab('stocks')">Stocks</button>
+			<button class="tab-btn" onclick="showTab('mutualFunds')">Mutual Funds</button>
+			<button class="tab-btn" onclick="showTab('orders')">Orders</button>
+		</div>
+
+		<div id="home" class="section active">
+			<div class="grid">
+				<div class="card">
+					<h3>Quick Actions</h3>
+					<p>Use the search in Home page to predict prices. Or switch to Stocks/Mutual Funds tabs.</p>
+					<div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+					<a href="{{ url_for('predictor') }}" class="tab-btn" style="text-decoration: none;">Go to Predictor</a>
+						<a href="{{ url_for('dashboard') }}#stocks" class="tab-btn" style="text-decoration: none;" onclick="showTab('stocks')">Add Stock</a>
+						<a href="{{ url_for('dashboard') }}#mutualFunds" class="tab-btn" style="text-decoration: none;" onclick="showTab('mutualFunds')">Add Mutual Fund</a>
+					</div>
+				</div>
+				<div class="card">
+					<h3>Recent Activity</h3>
+					<p>Your latest predictions and actions will appear here in future.</p>
+				</div>
+			</div>
+		</div>
+
+		<div id="stocks" class="section">
+			<div class="card">
+				<h3>Stocks</h3>
+				<p>Buy or sell stocks and manage your watchlist.</p>
+				<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+					<input id="stockSymbol" placeholder="Symbol e.g., RELIANCE.NS" style="padding:10px;border:1px solid #ddd;border-radius:8px;">
+					<input id="stockQty" type="number" min="1" step="1" placeholder="Qty" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:100px;">
+					<input id="stockPrice" type="number" min="0" step="0.01" placeholder="Price" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:120px;">
+					<button class="tab-btn" onclick="placeOrder('Stock','BUY')">Buy</button>
+					<button class="tab-btn" onclick="placeOrder('Stock','SELL')">Sell</button>
+				</div>
+				<table class="table" style="margin-top: 10px;">
+					<thead>
+						<tr><th>Symbol</th><th>Name</th><th>Notes</th><th>Actions</th></tr>
+					</thead>
+					<tbody id="stocksBody">
+						<tr><td colspan="4" style="color:#777;">No stocks added yet.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<div id="mutualFunds" class="section">
+			<div class="card">
+				<h3>Mutual Funds</h3>
+				<p>Buy or sell mutual fund units using scheme code.</p>
+				<div style="display:flex; gap:10px; flex-wrap:wrap; margin:10px 0;">
+					<input id="mfCode" placeholder="Scheme Code e.g., 120503" style="padding:10px;border:1px solid #ddd;border-radius:8px;">
+					<input id="mfQty" type="number" min="0.001" step="0.001" placeholder="Units" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:120px;">
+					<input id="mfPrice" type="number" min="0" step="0.01" placeholder="NAV" style="padding:10px;border:1px solid #ddd;border-radius:8px;width:120px;">
+					<button class="tab-btn" onclick="placeOrder('Mutual Fund','BUY')">Buy</button>
+					<button class="tab-btn" onclick="placeOrder('Mutual Fund','SELL')">Sell</button>
+				</div>
+				<table class="table" style="margin-top: 10px;">
+					<thead>
+						<tr><th>Scheme Code</th><th>Name</th><th>Notes</th><th>Actions</th></tr>
+					</thead>
+					<tbody id="mfBody">
+						<tr><td colspan="4" style="color:#777;">No mutual funds added yet.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<div id="orders" class="section">
+			<div class="card">
+				<h3>Orders</h3>
+				<p>Order history.</p>
+				<table class="table" style="margin-top: 10px;">
+					<thead>
+						<tr><th>#</th><th>Type</th><th>Symbol/Scheme</th><th>Side</th><th>Qty</th><th>Price</th><th>Status</th><th>Date</th></tr>
+					</thead>
+					<tbody id="ordersBody">
+						<tr><td colspan="8" style="color:#777;">No orders yet.</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		function showTab(id) {
+			// toggle active button
+			document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+			const map = { home:0, stocks:1, mutualFunds:2, orders:3 };
+			document.querySelectorAll('.tab-btn')[map[id]].classList.add('active');
+			// toggle sections
+			document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+			document.getElementById(id).classList.add('active');
+			// update URL hash (optional)
+			history.replaceState(null, '', `#${id}`);
+		}
+		// open tab from hash
+		const initial = (location.hash || '#home').substring(1);
+		if (['home','stocks','mutualFunds','orders'].includes(initial)) {
+			showTab(initial);
+		}
+
+		async function placeOrder(assetType, side) {
+			try {
+				let symbol = '';
+				let quantity = 0;
+				let price = 0;
+				if (assetType === 'Stock') {
+					symbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
+					quantity = parseFloat(document.getElementById('stockQty').value);
+					price = parseFloat(document.getElementById('stockPrice').value);
+				} else {
+					symbol = document.getElementById('mfCode').value.trim();
+					quantity = parseFloat(document.getElementById('mfQty').value);
+					price = parseFloat(document.getElementById('mfPrice').value);
+				}
+
+				if (!symbol || !(quantity > 0) || !(price > 0)) {
+					alert('Please enter valid inputs.');
+					return;
+				}
+
+				const res = await fetch('/orders', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ asset_type: assetType, symbol, side, quantity, price })
+				});
+				const data = await res.json();
+				if (!res.ok) {
+					alert(data.error || 'Order failed');
+					return;
+				}
+				await loadOrders();
+				alert('Order placed successfully');
+			} catch (e) {
+				alert('Order failed');
+				console.error(e);
+			}
+		}
+
+		async function loadOrders() {
+			try {
+				const res = await fetch('/orders');
+				const data = await res.json();
+				const tbody = document.getElementById('ordersBody');
+				tbody.innerHTML = '';
+				if (!data.orders || data.orders.length === 0) {
+					tbody.innerHTML = '<tr><td colspan="8" style="color:#777;">No orders yet.</td></tr>';
+					return;
+				}
+				for (const [i, o] of data.orders.entries()) {
+					const tr = document.createElement('tr');
+					tr.innerHTML = `<td>${i+1}</td><td>${o.asset_type}</td><td>${o.symbol}</td><td>${o.side}</td><td>${o.quantity}</td><td>${o.price}</td><td>${o.status}</td><td>${new Date(o.created_at).toLocaleString()}</td>`;
+					tbody.appendChild(tr);
+				}
+			} catch (e) {
+				console.error(e);
+			}
+		}
+
+		// Auto-load orders when opening Orders tab
+		if (location.hash.substring(1) === 'orders') {
+			loadOrders();
+		}
+		document.querySelectorAll('.tab-btn')[3].addEventListener('click', loadOrders);
+	</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard • AI Stock Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f5f6fa; }
+        .card { border: 0; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+        .metric { font-weight: 700; font-size: 1.6rem; }
+        .sub { color: #6c757d; font-size: .85rem; }
+        .scroll-fab { position: fixed; right: 16px; z-index: 1050; }
+        #fabTop { bottom: 84px; }
+        #fabBottom { bottom: 24px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">📊 Dashboard</a>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-light btn-sm" href="{{ url_for('predictor') }}">Go to Predictor</a>
+                <a class="btn btn-light btn-sm" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row g-3 align-items-end" id="section-controls">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Symbol</label>
+                <input class="form-control" id="dashSymbol" placeholder="e.g. RELIANCE.NS or AAPL" value="RELIANCE.NS">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label">Forecast Days</label>
+                <input type="number" min="1" max="365" class="form-control" id="dashDays" value="60">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label">Year</label>
+                <select id="yearFilter" class="form-select"></select>
+            </div>
+            <div class="col-12 col-md-3 text-md-end">
+                <button id="updateBtn" class="btn btn-primary w-100" onclick="loadData()">
+                    <span class="btn-text">Update</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="loadingBar" class="d-none text-center mt-3">
+            <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+            <span class="ms-2 text-primary fw-semibold">Updating data...</span>
+        </div>
+
+        <!-- SECTION: Metrics -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <h5 class="mb-0">Overview</h5>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-metrics','up')">↑</button>
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-metrics','down')">↓</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1" id="section-metrics" data-section>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="sub">Current Price</div>
+                    <div class="metric" id="mPrice">—</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="sub">Accuracy</div>
+                    <div class="metric" id="mAcc">—</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="sub">Forecast Days</div>
+                    <div class="metric" id="mDays">—</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card p-3">
+                    <div class="sub">Asset</div>
+                    <div class="metric" id="mAsset">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Line Chart -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <h5 class="mb-0">Historical + Forecast</h5>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-line','up')">↑</button>
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-line','down')">↓</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1" id="section-line" data-section>
+            <div class="col-12">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Historical + Forecast (₹)</h6>
+                        <small class="text-muted" id="rangeTxt"></small>
+                    </div>
+                    <canvas id="lineChart" height="90"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Bar (Monthly Average) -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <h5 class="mb-0">Monthly Average</h5>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder">
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-breakdowns','up')">↑</button>
+                <button class="btn btn-outline-secondary" onclick="moveSection('section-breakdowns','down')">↓</button>
+            </div>
+        </div>
+        <div class="row g-3 mt-1" id="section-breakdowns" data-section>
+            <div class="col-12">
+                <div class="card p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Monthly Average (Selected Year)</h6>
+                        <small class="text-muted">Change year to update</small>
+                    </div>
+                    <canvas id="barChart" height="110"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating scroll buttons -->
+    <div id="fabTop" class="scroll-fab d-none">
+        <button class="btn btn-primary rounded-pill shadow" onclick="scrollToTop()">↑ Top</button>
+    </div>
+    <div id="fabBottom" class="scroll-fab">
+        <button class="btn btn-outline-primary rounded-pill shadow" onclick="scrollToBottom()">↓ Bottom</button>
+    </div>
+
+    <script>
+        let lineRef, barRef, pieRef;
+
+        function setYears() {
+            const sel = document.getElementById('yearFilter');
+            sel.innerHTML = '';
+            const current = new Date().getFullYear();
+            for (let y = 2020; y <= current; y++) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                sel.appendChild(opt);
+            }
+            sel.value = current;
+        }
+
+        let __dashData = null; // cache last response
+
+        async function loadData() {
+            const symbol = document.getElementById('dashSymbol').value.trim().toUpperCase();
+            const days = parseInt(document.getElementById('dashDays').value) || 60;
+            if (!symbol) return;
+            
+            const loader = document.getElementById('loadingBar');
+            const btn = document.getElementById('updateBtn');
+            const btnText = btn.querySelector('.btn-text');
+            try {
+                // Show loader and disable button
+                loader.classList.remove('d-none');
+                btn.disabled = true;
+                btnText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading';
+            
+            const res = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticker: symbol, forecast_days: days })
+            });
+            const data = await res.json();
+            if (!data || data.error) {
+                alert(data?.error || 'Failed to load data');
+                return;
+            }
+            __dashData = data;
+
+            document.getElementById('mPrice').textContent = `₹${data.current_price}`;
+            document.getElementById('mAcc').textContent = `${data.accuracy}%`;
+            document.getElementById('mDays').textContent = data.forecast_days;
+            document.getElementById('mAsset').textContent = data.asset_type || 'Stock';
+
+            // Build arrays
+            const hist = (data.historical || []).map(h => ({ date: h.Date || h.date, close: h.Close || h.close }));
+            const preds = (data.predictions || []).map(p => ({ date: p.Date, price: p.Predicted_Price, year: p.Year, month: p.Month }));
+
+            const labels = [...hist.map(h => h.date), ...preds.map(p => p.date)];
+            const histVals = [...hist.map(h => h.close), ...Array(preds.length).fill(null)];
+            const predVals = [...Array(hist.length).fill(null), ...preds.map(p => p.price)];
+            const from = labels[0], to = labels[labels.length-1];
+            document.getElementById('rangeTxt').textContent = `${new Date(from).toLocaleDateString()} → ${new Date(to).toLocaleDateString()}`;
+
+            // Line - cleaner look with smooth curves and gridlines
+            if (lineRef) lineRef.destroy();
+            lineRef = new Chart(document.getElementById('lineChart').getContext('2d'), {
+                type: 'line',
+                data: { labels, datasets: [
+                    { label: 'Historical', data: histVals, borderColor: 'rgba(75,192,192,1)', backgroundColor: 'rgba(75,192,192,.12)', pointRadius: 0, tension: .35 },
+                    { label: 'Forecast', data: predVals, borderColor: 'rgba(255,99,132,1)', backgroundColor: 'rgba(255,99,132,.12)', borderDash: [6,6], pointRadius: 0, tension: .35 }
+                ]},
+                options: {
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: {
+                        x: { grid: { color: 'rgba(0,0,0,.05)' } },
+                        y: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { callback: v => `₹${Number(v).toFixed(2)}` } }
+                    }
+                }
+            });
+
+            // Build monthly bar based on current year (no network)
+            renderYearCharts();
+            } catch (e) {
+                console.error(e);
+            } finally {
+                // Hide loader and enable button
+                loader.classList.add('d-none');
+                btn.disabled = false;
+                btnText.textContent = 'Update';
+            }
+        }
+
+        function renderYearCharts() {
+            if (!__dashData) return;
+            const preds = (__dashData.predictions || []).map(p => ({ date: p.Date, price: p.Predicted_Price, year: p.Year, month: p.Month }));
+            const year = parseInt(document.getElementById('yearFilter').value);
+
+            // Bar
+            const selYearData = preds.filter(p => p.year === year);
+            const monthly = Array.from({length:12}, (_,i)=>({m:i+1, sum:0, n:0}));
+            selYearData.forEach(p => { monthly[p.month-1].sum += p.price; monthly[p.month-1].n++; });
+            const barLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const barVals = monthly.map(x => x.n ? x.sum/x.n : 0);
+            if (barRef) barRef.destroy();
+            barRef = new Chart(document.getElementById('barChart').getContext('2d'), {
+                type: 'bar', data: { labels: barLabels, datasets: [{ label: `Avg ₹ (${year})`, data: barVals, backgroundColor: 'rgba(102,126,234,.6)' }] },
+                options: { scales: { y: { ticks: { callback: v => `₹${Number(v).toFixed(2)}` } } } }
+            });
+
+            // Removed Yearly Distribution per request
+        }
+
+        // Move sections up/down
+        function moveSection(id, dir){
+            const el = document.getElementById(id);
+            if (!el) return;
+            const parent = el.parentElement;
+            const sections = Array.from(document.querySelectorAll('[data-section]'));
+            const idx = sections.indexOf(el);
+            if (dir==='up' && idx>0){
+                parent.insertBefore(el, sections[idx-1]);
+            } else if (dir==='down' && idx<sections.length-1){
+                parent.insertBefore(sections[idx+1], el);
+            }
+        }
+
+        // Smooth scrolling helpers
+        function scrollToTop(){ window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        function scrollToBottom(){ window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }
+
+        // Show/Hide TOP button depending on scroll
+        const fabTop = document.getElementById('fabTop');
+        const fabBottom = document.getElementById('fabBottom');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 200) fabTop.classList.remove('d-none'); else fabTop.classList.add('d-none');
+            // Optional: hide bottom button near bottom
+            const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 200);
+            if (nearBottom) fabBottom.classList.add('d-none'); else fabBottom.classList.remove('d-none');
+        });
+
+        // Only update when clicking the Update button
+        document.getElementById('yearFilter').addEventListener('change', () => renderYearCharts());
+        setYears();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+

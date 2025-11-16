@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Price Predictor - {{ current_user.preferred_algorithm if current_user.is_authenticated else 'LSTM' }} AI (INR)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .search-section {
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .forecast-input {
+            flex: 0 0 150px;
+            padding: 15px 20px;
+            font-size: 1.1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .forecast-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            padding: 40px;
+            display: none;
+        }
+
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-card h3 {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-card .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container h3 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .predictions-table {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+        }
+
+        th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .download-section {
+            text-align: center;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 40px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+        }
+
+        .examples h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .example-ticker {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .example-ticker:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .stock-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .stock-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .stock-logo {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+            flex-shrink: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .stock-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+
+        .stock-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stock-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stock-symbol {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .stock-arrow {
+            color: #667eea;
+            font-size: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stock-card:hover .stock-arrow {
+            opacity: 1;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #667eea;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        .year-selector {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .year-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .year-btn:hover, .year-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .pagination button {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .pagination button:hover, .pagination button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            margin: 0 15px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .show-all {
+            background: white;
+            border: 2px solid #28a745;
+            color: #28a745;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-left: 15px;
+        }
+
+        .show-all:hover {
+            background: #28a745;
+            color: white;
+        }
+
+        .live-prices-section {
+            padding: 30px 40px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-bottom: 2px solid #ddd;
+        }
+
+        .live-prices-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .live-prices-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .live-price-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 4px solid;
+        }
+
+        .live-price-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .live-price-card.gold {
+            border-left-color: #ffd700;
+        }
+
+        .live-price-card.silver {
+            border-left-color: #c0c0c0;
+        }
+
+        .live-price-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .live-price-header h3 {
+            font-size: 1.2em;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .live-price-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .live-price-change {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .live-price-change.positive {
+            color: #28a745;
+        }
+
+        .live-price-change.negative {
+            color: #dc3545;
+        }
+
+        .live-price-change.neutral {
+            color: #6c757d;
+        }
+
+        .live-price-currency {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .live-price-update-time {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .loading-prices {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .live-price-card.loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div>
+                    <h1>📈 Stock Price Predictor - {{ current_user.preferred_algorithm if current_user.is_authenticated else 'LSTM' }} AI (INR)</h1>
+                    <p>{% if current_user.is_authenticated and current_user.preferred_algorithm == 'Linear Regression' %}Machine Learning Powered Stock Price Predictions with Custom Forecast Period{% else %}Deep Learning Powered Stock Price Predictions with Custom Forecast Period{% endif %}</p>
+                </div>
+                <div class="auth-buttons" style="display:flex; align-items:center; gap:10px;">
+                    {% if current_user.is_authenticated %}
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="color: white; font-weight: 600;">Welcome, {{ current_user.first_name }}!</span>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Dashboard</a>
+                            <a href="{{ url_for('logout') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Logout</a>
+                        </div>
+                    {% else %}
+                        <div style="display: flex; gap: 10px;">
+                            <a href="{{ url_for('login') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Login</a>
+                            <a href="{{ url_for('register') }}" class="btn btn-secondary" style="padding: 10px 20px; font-size: 0.9em;">Register</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="live-prices-section">
+            <div class="container-fluid px-0">
+                <div class="row mb-3 align-items-center">
+                    <div class="col-md-6">
+                        <h2 class="mb-0">💰 Live Precious Metals Prices</h2>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <label for="stateSelectMain" class="mb-0 small text-muted">State:</label>
+                            <select id="stateSelectMain" class="form-select form-select-sm" style="width: auto; display: inline-block;" onchange="updateAllPrices()">
+                                <option value="Karnataka" selected>Karnataka</option>
+                                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                                <option value="Tamil Nadu">Tamil Nadu</option>
+                                <option value="Maharashtra">Maharashtra</option>
+                                <option value="Delhi">Delhi</option>
+                                <option value="Gujarat">Gujarat</option>
+                                <option value="West Bengal">West Bengal</option>
+                                <option value="Rajasthan">Rajasthan</option>
+                                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                                <option value="Telangana">Telangana</option>
+                                <option value="Kerala">Kerala</option>
+                                <option value="Punjab">Punjab</option>
+                                <option value="Haryana">Haryana</option>
+                                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                                <option value="Bihar">Bihar</option>
+                                <option value="Odisha">Odisha</option>
+                                <option value="Assam">Assam</option>
+                                <option value="Jharkhand">Jharkhand</option>
+                                <option value="Chhattisgarh">Chhattisgarh</option>
+                                <option value="Himachal Pradesh">Himachal Pradesh</option>
+                                <option value="Uttarakhand">Uttarakhand</option>
+                                <option value="Goa">Goa</option>
+                                <option value="Puducherry">Puducherry</option>
+                                <option value="Tripura">Tripura</option>
+                                <option value="Meghalaya">Meghalaya</option>
+                                <option value="Manipur">Manipur</option>
+                                <option value="Nagaland">Nagaland</option>
+                                <option value="Arunachal Pradesh">Arunachal Pradesh</option>
+                                <option value="Mizoram">Mizoram</option>
+                                <option value="Sikkim">Sikkim</option>
+                            </select>
+                            <span class="badge bg-success" id="liveIndicator" style="animation: pulse 2s infinite;">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Live
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Cards Section -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="live-price-card gold loading h-100">
+                            <div class="live-price-header d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="mb-0">🥇 Gold (24k)</h3>
+                                <small class="text-muted" id="goldUpdateTime">Updating...</small>
+                            </div>
+                            <div class="live-price-value fs-1 fw-bold mb-2" id="goldPrice">Loading...</div>
+                            <div class="live-price-change mb-2" id="goldChange">-</div>
+                            <div class="live-price-currency text-muted small" id="goldCurrency">INR per 10g</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="live-price-card silver loading h-100">
+                            <div class="live-price-header d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="mb-0">🥈 Silver</h3>
+                                <small class="text-muted" id="silverUpdateTime">Updating...</small>
+                            </div>
+                            <div class="live-price-value fs-1 fw-bold mb-2" id="silverPrice">Loading...</div>
+                            <div class="live-price-change mb-2" id="silverChange">-</div>
+                            <div class="live-price-currency text-muted small" id="silverCurrency">INR per 10g</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Gold Price Trend</h6>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod('5D', 'gold')" id="goldPeriod5D">5D</button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm active" onclick="changePeriod('1M', 'gold')" id="goldPeriod1M">1M</button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod('1Y', 'gold')" id="goldPeriod1Y">1Y</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="goldChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Silver Price Trend</h6>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod('5D', 'silver')" id="silverPeriod5D">5D</button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm active" onclick="changePeriod('1M', 'silver')" id="silverPeriod1M">1M</button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod('1Y', 'silver')" id="silverPeriod1Y">1Y</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="silverChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Disclaimer Section -->
+                <div class="alert alert-info mt-3 mb-0" role="alert">
+                    <small>
+                        <strong>Disclaimer:</strong> Gold and silver prices are indicative and may vary based on market conditions, making charges, and other factors. Prices shown are for 24k gold (99.9% purity) and silver per 10 grams. State premiums are approximate. This information should not be used as the sole basis for investment decisions.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.6; }
+            }
+            .live-prices-section {
+                padding: 30px 40px;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                border-bottom: 2px solid #ddd;
+            }
+            .live-price-card {
+                background: white;
+                border-radius: 15px;
+                padding: 25px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                transition: transform 0.3s, box-shadow 0.3s;
+                border-left: 4px solid;
+            }
+            .live-price-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            }
+            .live-price-card.gold {
+                border-left-color: #ffd700;
+            }
+            .live-price-card.silver {
+                border-left-color: #c0c0c0;
+            }
+            .live-price-value {
+                color: #667eea;
+            }
+            .live-price-change.positive {
+                color: #28a745;
+            }
+            .live-price-change.negative {
+                color: #dc3545;
+            }
+            .live-price-card.loading {
+                animation: pulse 1.5s ease-in-out infinite;
+            }
+        </style>
+
+        <div class="search-section">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages" style="margin-bottom: 20px;">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}" style="padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; font-weight: 600;">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="search-box">
+                <input type="text" id="tickerInput" placeholder="Enter stock/commodity/MF scheme code (e.g., RELIANCE.NS, AAPL, 118989)" autocomplete="off">
+                <input type="number" id="forecastDays" class="forecast-input" placeholder="Days" value="30" min="1" max="365">
+                <button class="btn btn-primary" onclick="searchStock()">Search</button>
+            </div>
+
+            <div class="examples">
+                <h3>Try these examples:</h3>
+                
+                <!-- Indian Stocks Section -->
+                <div class="section-title">📈 Indian Stocks</div>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('GLD', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ffc107 0%, #ffd700 100%);">G</div>
+                            <div class="stock-info">
+                                <div class="stock-name">GOLD</div>
+                                <div class="stock-symbol">GLD</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('SILVER', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #6c757d 0%, #c0c0c0 100%);">S</div>
+                            <div class="stock-info">
+                                <div class="stock-name">SILVER</div>
+                                <div class="stock-symbol">SILVER</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('RELIANCE.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%);">
+                                <img src="https://logo.clearbit.com/reliance.com" alt="R" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">R</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Reliance Industries</div>
+                                <div class="stock-symbol">RELIANCE.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('HDFCBANK.NS', 60)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);">
+                                <img src="https://logo.clearbit.com/hdfcbank.com" alt="H" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">H</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Bank</div>
+                                <div class="stock-symbol">HDFCBANK.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('TCS.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <img src="https://logo.clearbit.com/tcs.com" alt="TCS" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">TCS</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Tata Consultancy Services</div>
+                                <div class="stock-symbol">TCS.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('INFY.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <img src="https://logo.clearbit.com/infosys.com" alt="I" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">I</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Infosys</div>
+                                <div class="stock-symbol">INFY.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('ICICIBANK.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                <img src="https://logo.clearbit.com/icicibank.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Bank</div>
+                                <div class="stock-symbol">ICICIBANK.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('SBIN.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">State Bank of India</div>
+                                <div class="stock-symbol">SBIN.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('TATASTEEL.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                <img src="https://logo.clearbit.com/tatasteel.com" alt="TS" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">TS</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Tata Steel</div>
+                                <div class="stock-symbol">TATASTEEL.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('TATAMOTORS.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+                                <img src="https://logo.clearbit.com/tatamotors.com" alt="TM" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">TM</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Tata Motors</div>
+                                <div class="stock-symbol">TATAMOTORS.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('HINDUNILVR.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                                <img src="https://logo.clearbit.com/hul.co.in" alt="HUL" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HUL</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Hindustan Unilever</div>
+                                <div class="stock-symbol">HINDUNILVR.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('ITC.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);">
+                                <img src="https://logo.clearbit.com/itcportal.com" alt="ITC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ITC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ITC Limited</div>
+                                <div class="stock-symbol">ITC.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('KOTAKBANK.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KB" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KB</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Mahindra Bank</div>
+                                <div class="stock-symbol">KOTAKBANK.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('AXISBANK.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);">
+                                <img src="https://logo.clearbit.com/axisbank.com" alt="AB" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">AB</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Axis Bank</div>
+                                <div class="stock-symbol">AXISBANK.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('LT.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);">
+                                <img src="https://logo.clearbit.com/larsentoubro.com" alt="L&T" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">L&T</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Larsen & Toubro</div>
+                                <div class="stock-symbol">LT.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('MARUTI.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);">
+                                <img src="https://logo.clearbit.com/maruti.co.in" alt="M" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">M</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Maruti Suzuki</div>
+                                <div class="stock-symbol">MARUTI.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('BAJAJ-AUTO.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);">
+                                <img src="https://logo.clearbit.com/bajajauto.com" alt="BA" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">BA</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Bajaj Auto</div>
+                                <div class="stock-symbol">BAJAJ-AUTO.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('BHARTIARTL.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+                                <img src="https://logo.clearbit.com/airtel.in" alt="BA" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">BA</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Bharti Airtel</div>
+                                <div class="stock-symbol">BHARTIARTL.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('SUNPHARMA.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fad961 0%, #f76b1c 100%);">
+                                <img src="https://logo.clearbit.com/sunpharma.com" alt="SP" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SP</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Sun Pharma</div>
+                                <div class="stock-symbol">SUNPHARMA.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('DRREDDY.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);">
+                                <img src="https://logo.clearbit.com/drreddys.com" alt="DR" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">DR</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Dr. Reddy's</div>
+                                <div class="stock-symbol">DRREDDY.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('CIPLA.NS', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
+                                <img src="https://logo.clearbit.com/cipla.com" alt="C" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">C</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Cipla</div>
+                                <div class="stock-symbol">CIPLA.NS</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Indian Mutual Funds Section -->
+                <div class="section-title">💰 Indian Mutual Funds</div>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('118989', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <img src="https://logo.clearbit.com/hdfcmf.com" alt="HDFC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HDFC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Mid-Cap Opportunities</div>
+                                <div class="stock-symbol">Scheme: 118989</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120503', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">SBI Bluechip Fund</div>
+                                <div class="stock-symbol">Scheme: 120503</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('119533', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KOTAK" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KOTAK</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Bluechip Fund</div>
+                                <div class="stock-symbol">Scheme: 119533</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120465', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                                <img src="https://logo.clearbit.com/icicipruamc.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Prudential Bluechip</div>
+                                <div class="stock-symbol">Scheme: 120465</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('118989', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                <img src="https://logo.clearbit.com/hdfcmf.com" alt="HDFC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HDFC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Equity Fund</div>
+                                <div class="stock-symbol">Scheme: 118989</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120503', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">SBI Magnum Equity Fund</div>
+                                <div class="stock-symbol">Scheme: 120503</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('119533', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KOTAK" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KOTAK</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Standard Multicap</div>
+                                <div class="stock-symbol">Scheme: 119533</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120465', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);">
+                                <img src="https://logo.clearbit.com/icicipruamc.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Value Discovery</div>
+                                <div class="stock-symbol">Scheme: 120465</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('118989', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                                <img src="https://logo.clearbit.com/hdfcmf.com" alt="HDFC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HDFC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Top 100 Fund</div>
+                                <div class="stock-symbol">Scheme: 118989</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120503', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">SBI Small Cap Fund</div>
+                                <div class="stock-symbol">Scheme: 120503</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('119533', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KOTAK" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KOTAK</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Emerging Equity</div>
+                                <div class="stock-symbol">Scheme: 119533</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120465', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);">
+                                <img src="https://logo.clearbit.com/icicipruamc.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Technology Fund</div>
+                                <div class="stock-symbol">Scheme: 120465</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('118989', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);">
+                                <img src="https://logo.clearbit.com/hdfcmf.com" alt="HDFC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HDFC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Small Cap Fund</div>
+                                <div class="stock-symbol">Scheme: 118989</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120503', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">SBI Contra Fund</div>
+                                <div class="stock-symbol">Scheme: 120503</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('119533', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #fad961 0%, #f76b1c 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KOTAK" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KOTAK</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Flexicap Fund</div>
+                                <div class="stock-symbol">Scheme: 119533</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120465', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);">
+                                <img src="https://logo.clearbit.com/icicipruamc.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Infrastructure</div>
+                                <div class="stock-symbol">Scheme: 120465</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('118989', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
+                                <img src="https://logo.clearbit.com/hdfcmf.com" alt="HDFC" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">HDFC</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">HDFC Balanced Advantage</div>
+                                <div class="stock-symbol">Scheme: 118989</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120503', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <img src="https://logo.clearbit.com/sbi.co.in" alt="SBI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">SBI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">SBI Focused Equity</div>
+                                <div class="stock-symbol">Scheme: 120503</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('119533', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <img src="https://logo.clearbit.com/kotak.com" alt="KOTAK" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">KOTAK</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">Kotak Equity Hybrid</div>
+                                <div class="stock-symbol">Scheme: 119533</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stock-card" onclick="searchExample('120465', 30)">
+                            <div class="stock-logo" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                <img src="https://logo.clearbit.com/icicipruamc.com" alt="ICICI" style="width:100%; height:100%; object-fit:cover; border-radius:10px; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <span style="display:none;">ICICI</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-name">ICICI Balanced Advantage</div>
+                                <div class="stock-symbol">Scheme: 120465</div>
+                            </div>
+                            <div class="stock-arrow">→</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div id="loadingMessages">
+                <p id="loadingText" class="mb-2">Initializing prediction...</p>
+                <div id="statusSteps" style="text-align: left; max-width: 600px; margin: 0 auto; padding: 10px;">
+                    <div id="step1" class="status-step" style="padding: 5px 0; color: #6c757d;">
+                        <span id="step1-icon">⏳</span> <span>Fetching stock data...</span>
+                    </div>
+                    <div id="step2" class="status-step" style="padding: 5px 0; color: #6c757d; display: none;">
+                        <span id="step2-icon">⏳</span> <span>Preparing dataset...</span>
+                    </div>
+                    <div id="step3" class="status-step" style="padding: 5px 0; color: #6c757d; display: none;">
+                        <span id="step3-icon">⏳</span> <span id="step3-text">Training model...</span>
+                    </div>
+                    <div id="step4" class="status-step" style="padding: 5px 0; color: #6c757d; display: none;">
+                        <span id="step4-icon">⏳</span> <span>Generating predictions...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let charts = [];
+        let currentPage = 1;
+        let itemsPerPage = 30;
+        let showAllMode = false;
+        let selectedYear = null;
+        let priceUpdateInterval = null;
+
+        const tickerInput = document.getElementById('tickerInput');
+
+        // Global variables for price updates
+        let goldChartInstance = null;
+        let silverChartInstance = null;
+        let goldPeriod = '1M';
+        let silverPeriod = '1M';
+        let currentState = 'Karnataka';
+
+        // Function to update all prices with state selection
+        async function updateAllPrices() {
+            currentState = document.getElementById('stateSelectMain').value;
+            await Promise.all([
+                updateMetalPrice('gold', goldPeriod),
+                updateMetalPrice('silver', silverPeriod)
+            ]);
+        }
+
+        // Function to update individual metal price
+        async function updateMetalPrice(metal, period) {
+            try {
+                const response = await fetch(`/api/gold-silver-prices?metal=${metal}&state=${encodeURIComponent(currentState)}&period=${period}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const card = document.querySelector(`.live-price-card.${metal}`);
+                    const priceEl = document.getElementById(`${metal}Price`);
+                    const changeEl = document.getElementById(`${metal}Change`);
+                    const updateTimeEl = document.getElementById(`${metal}UpdateTime`);
+
+                    if (data.price !== null) {
+                        priceEl.textContent = `₹${data.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        
+                        if (data.change !== null && data.change_percent !== null) {
+                            const changeClass = data.change > 0 ? 'positive' : (data.change < 0 ? 'negative' : 'neutral');
+                            const changeSymbol = data.change > 0 ? '▲' : (data.change < 0 ? '▼' : '—');
+                            changeEl.className = `live-price-change ${changeClass}`;
+                            changeEl.innerHTML = `${changeSymbol} ₹${Math.abs(data.change).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${data.change > 0 ? '+' : ''}${data.change_percent.toFixed(2)}%)`;
+                        } else {
+                            changeEl.textContent = '—';
+                            changeEl.className = 'live-price-change neutral';
+                        }
+                        
+                        const updateTime = new Date(data.timestamp);
+                        updateTimeEl.textContent = updateTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                        card.classList.remove('loading');
+
+                        // Update chart
+                        if (data.historical && data.historical.length > 0) {
+                            updateChart(metal, data.historical, period);
+                        }
+                    } else {
+                        priceEl.textContent = 'N/A';
+                        changeEl.textContent = 'Data unavailable';
+                        changeEl.className = 'live-price-change neutral';
+                        card.classList.remove('loading');
+                    }
+                } else {
+                    const card = document.querySelector(`.live-price-card.${metal}`);
+                    document.getElementById(`${metal}Price`).textContent = 'Error';
+                    card.classList.remove('loading');
+                }
+            } catch (error) {
+                console.error(`Error fetching ${metal} price:`, error);
+                const card = document.querySelector(`.live-price-card.${metal}`);
+                document.getElementById(`${metal}Price`).textContent = 'Error';
+                card.classList.remove('loading');
+            }
+        }
+
+        // Function to update chart
+        function updateChart(metal, historical, period) {
+            const canvasId = `${metal}Chart`;
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            // Destroy existing chart
+            if (metal === 'gold' && goldChartInstance) {
+                goldChartInstance.destroy();
+            } else if (metal === 'silver' && silverChartInstance) {
+                silverChartInstance.destroy();
+            }
+
+            const labels = historical.map(h => {
+                const date = new Date(h.date);
+                if (period === '5D') {
+                    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+                return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+            });
+            const prices = historical.map(h => h.price);
+            
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const padding = (maxPrice - minPrice) * 0.1;
+
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${metal.charAt(0).toUpperCase() + metal.slice(1)} Price (₹)`,
+                        data: prices,
+                        borderColor: metal === 'gold' ? '#ffd700' : '#c0c0c0',
+                        backgroundColor: metal === 'gold' ? 'rgba(255, 215, 0, 0.1)' : 'rgba(192, 192, 192, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return '₹' + context.parsed.y.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            min: Math.max(0, minPrice - padding),
+                            max: maxPrice + padding,
+                            grid: {
+                                color: '#f1f3f4'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                },
+                                callback: function(value) {
+                                    const num = Math.round(value);
+                                    if (num >= 100000) {
+                                        return '₹' + (num / 100000).toFixed(1) + 'L';
+                                    } else if (num >= 1000) {
+                                        return '₹' + (num / 1000).toFixed(1) + 'K';
+                                    }
+                                    return '₹' + num;
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            };
+
+            if (Chart) {
+                if (metal === 'gold') {
+                    goldChartInstance = new Chart(ctx, chartConfig);
+                } else {
+                    silverChartInstance = new Chart(ctx, chartConfig);
+                }
+            }
+        }
+
+        // Function to change period
+        function changePeriod(period, metal) {
+            if (metal === 'gold') {
+                goldPeriod = period;
+                document.querySelectorAll('[id^="goldPeriod"]').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`goldPeriod${period}`).classList.add('active');
+                updateMetalPrice('gold', period);
+            } else {
+                silverPeriod = period;
+                document.querySelectorAll('[id^="silverPeriod"]').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`silverPeriod${period}`).classList.add('active');
+                updateMetalPrice('silver', period);
+            }
+        }
+
+        // Function to fetch and update live prices (legacy support)
+        async function updateLivePrices() {
+            await updateAllPrices();
+        }
+
+        // Initialize live prices on page load
+        updateAllPrices();
+
+        // Update prices every 15 seconds for real-time feel (like Google)
+        priceUpdateInterval = setInterval(updateAllPrices, 15000);
+
+        // Clean up interval when page is unloaded
+        window.addEventListener('beforeunload', () => {
+            if (priceUpdateInterval) {
+                clearInterval(priceUpdateInterval);
+            }
+        });
+        
+        tickerInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchStock();
+            }
+        });
+
+        function searchExample(ticker, days) {
+            tickerInput.value = ticker;
+            document.getElementById('forecastDays').value = days;
+            searchStock();
+        }
+
+        async function searchStock() {
+            const ticker = tickerInput.value.trim().toUpperCase();
+            const forecastDays = parseInt(document.getElementById('forecastDays').value) || 30;
+            
+            if (!ticker) {
+                alert('Please enter a stock symbol');
+                return;
+            }
+
+            if (forecastDays < 1 || forecastDays > 365) {
+                alert('Forecast days must be between 1 and 365');
+                return;
+            }
+
+            // Basic validation for common invalid patterns
+            if (ticker.includes(' ') || ticker.length < 1 || ticker.length > 10) {
+                alert('Invalid symbol format. Please use valid stock symbols like AAPL, RELIANCE.NS, or mutual fund scheme codes like 118989.');
+                return;
+            }
+
+            // Reset status steps
+            document.querySelectorAll('.status-step').forEach(step => {
+                step.style.display = 'none';
+                step.style.color = '#6c757d';
+                const icon = step.querySelector('[id$="-icon"]');
+                if (icon) icon.textContent = '⏳';
+            });
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('results').innerHTML = '';
+
+            // Show step 1 - Fetching data
+            const step1 = document.getElementById('step1');
+            step1.style.display = 'block';
+            step1.style.color = '#1a73e8';
+            document.getElementById('step1-icon').textContent = '🔄';
+            document.getElementById('loadingText').textContent = `🔍 Detecting stock symbol: ${ticker}`;
+            
+            // Update step 1 message after a moment to show success
+            setTimeout(() => {
+                const step1Text = step1.querySelector('span:last-child');
+                if (step1Text) {
+                    step1Text.textContent = `✅ Successfully fetched data for ${ticker}`;
+                    document.getElementById('step1-icon').textContent = '✅';
+                }
+            }, 1500);
+
+            // Simulate step progress (since we can't get real-time updates from backend)
+            setTimeout(() => {
+                const step2 = document.getElementById('step2');
+                step2.style.display = 'block';
+                step2.style.color = '#1a73e8';
+                document.getElementById('step2-icon').textContent = '🔄';
+                document.getElementById('loadingText').textContent = 'Processing historical data...';
+                
+                setTimeout(() => {
+                    const step2Text = step2.querySelector('span:last-child');
+                    if (step2Text) {
+                        step2Text.textContent = '✅ Dataset prepared successfully';
+                        document.getElementById('step2-icon').textContent = '✅';
+                    }
+                    
+                    const step3 = document.getElementById('step3');
+                    step3.style.display = 'block';
+                    step3.style.color = '#1a73e8';
+                    document.getElementById('step3-icon').textContent = '🔄';
+                    // Algorithm will be updated from response
+                    document.getElementById('step3-text').textContent = `Training model...`;
+                    document.getElementById('loadingText').textContent = `Training model for ${ticker}...`;
+                }, 2000);
+            }, 1500);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ticker: ticker, forecast_days: forecastDays })
+                });
+
+                // Show step 4 - Generating predictions
+                const step4 = document.getElementById('step4');
+                step4.style.display = 'block';
+                step4.style.color = '#1a73e8';
+                document.getElementById('step4-icon').textContent = '🔄';
+                document.getElementById('loadingText').textContent = 'Generating predictions...';
+
+                const data = await response.json();
+
+                // Update step 3 with actual algorithm name from response and mark as completed
+                if (data.algorithm) {
+                    const step3 = document.getElementById('step3');
+                    document.getElementById('step3-text').textContent = `✅ Training ${data.algorithm} model completed`;
+                    document.getElementById('step3-icon').textContent = '✅';
+                    step3.style.color = '#34a853';
+                    
+                    // Also update step 4 to show success
+                    const step4 = document.getElementById('step4');
+                    const step4Text = step4.querySelector('span:last-child');
+                    if (step4Text) {
+                        step4Text.textContent = '✅ Predictions generated successfully';
+                        document.getElementById('step4-icon').textContent = '✅';
+                        step4.style.color = '#34a853';
+                    }
+                } else {
+                    // Mark all steps as completed if no algorithm info
+                    document.querySelectorAll('.status-step').forEach(step => {
+                        step.style.color = '#34a853';
+                        const icon = step.querySelector('[id$="-icon"]');
+                        if (icon) icon.textContent = '✅';
+                    });
+                }
+                
+                // Update final status with algorithm info
+                const algoName = data.algorithm || 'model';
+                document.getElementById('loadingText').textContent = `✅ Successfully trained ${algoName} model for ${ticker}!`;
+                
+                // Show success message briefly
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 1000);
+
+                if (data.error) {
+                    if (data.error.includes('login') || data.error.includes('authentication')) {
+                        showError('Please login to make predictions. <a href="/login" style="color: #667eea;">Click here to login</a>');
+                    } else {
+                        showError(data.error);
+                    }
+                } else {
+                    currentData = data;
+                    showResults(data);
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                showError(`Network error: ${error.message}. Please check if the server is running and try again.`);
+                console.error('Error:', error);
+            }
+        }
+
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        function showResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+
+            // Destroy existing charts
+            charts.forEach(chart => chart.destroy());
+            charts = [];
+            currentPage = 1;
+            showAllMode = false;
+            selectedYear = null;
+
+            // Reset page when new data arrives
+            renderTable(data);
+        }
+
+        function renderTable(data) {
+            const resultsDiv = document.getElementById('results');
+            
+            // Calculate pagination
+            const filteredPreds = selectedYear ? data.predictions.filter(p => p.Year === selectedYear) : data.predictions;
+            const totalItems = filteredPreds.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            // Get data for current page
+            const startIndex = showAllMode ? 0 : (currentPage - 1) * itemsPerPage;
+            const endIndex = showAllMode ? totalItems : startIndex + itemsPerPage;
+            const pageData = filteredPreds.slice(startIndex, endIndex);
+
+            let tableRows = '';
+            pageData.forEach((pred, index) => {
+                const date = new Date(pred.Date);
+                const displayIndex = showAllMode ? startIndex + index + 1 : (currentPage - 1) * itemsPerPage + index + 1;
+                tableRows += `
+                    <tr>
+                        <td>${displayIndex}</td>
+                        <td>${date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                        <td>${pred.Year}</td>
+                        <td>₹${pred.Predicted_Price.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            const predictionDate = new Date(filteredPreds[0].Date);
+            const endDate = new Date(filteredPreds[filteredPreds.length - 1].Date);
+            
+            // Get unique years
+            const years = [...new Set(data.predictions.map(p => p.Year))];
+            
+            resultsDiv.innerHTML = `
+                 <div class="info-cards">
+                     <div class="info-card">
+                         <h3>${data.asset_type || 'Stock'} Symbol</h3>
+                         <div class="value">${data.ticker}</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Current ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'}</h3>
+                         <div class="value">₹${data.current_price}</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Forecast Period</h3>
+                         <div class="value" style="font-size: 0.9em;">${data.forecast_days} days</div>
+                     </div>
+                     <div class="info-card">
+                         <h3>Prediction Accuracy</h3>
+                         <div class="value">${data.accuracy}%</div>
+                     </div>
+                 </div>
+
+                <!-- Algorithm Comparison Table -->
+                ${data.comparison ? `
+                <div class="card mb-4" style="border-radius: 15px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                    <div class="card-header bg-primary text-white" style="border-radius: 15px 15px 0 0;">
+                        <h4 class="mb-0">📊 Algorithm Comparison</h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Algorithm</th>
+                                        <th>Average Predicted Price</th>
+                                        <th>Accuracy (%)</th>
+                                        <th>RMSE</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.comparison.map(algo => `
+                                        <tr ${algo.algorithm === data.best_algorithm ? 'class="table-success"' : ''}>
+                                            <td>
+                                                <strong>${algo.algorithm}</strong>
+                                                ${algo.algorithm === data.best_algorithm ? '<span class="badge bg-success ms-2">⭐ Best</span>' : ''}
+                                            </td>
+                                            <td>${algo.avg_price !== null ? '₹' + algo.avg_price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '<span class="text-muted">N/A</span>'}</td>
+                                            <td>${algo.accuracy !== null ? algo.accuracy + '%' : '<span class="text-muted">N/A</span>'}</td>
+                                            <td>${algo.rmse !== null ? algo.rmse.toFixed(2) : '<span class="text-muted">N/A</span>'}</td>
+                                            <td>
+                                                ${algo.error ? '<span class="badge bg-danger">Error</span>' : '<span class="badge bg-success">Success</span>'}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <strong>Conclusion:</strong> 
+                        ${data.best_algorithm ? `Based on accuracy and RMSE, <strong class="text-success">${data.best_algorithm}</strong> is the recommended algorithm for ${data.ticker} predictions.` : 'Unable to determine best algorithm.'}
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Should You Buy Section -->
+                ${data.buy_recommendation ? `
+                <div class="card mb-4" style="border-radius: 15px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                    <div class="card-body">
+                        <h4 class="mb-4"><strong>Should you buy at this price?</strong></h4>
+                        <div class="row">
+                            <div class="col-md-7">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="badge bg-danger">Skip</span>
+                                        <span class="badge bg-warning">Wait</span>
+                                        <span class="badge bg-info">Okay</span>
+                                        <span class="badge bg-success">Yes</span>
+                                    </div>
+                                    <div class="recommendation-slider-container" style="position: relative; height: 60px;">
+                                        <div class="recommendation-slider" style="
+                                            height: 8px;
+                                            background: linear-gradient(to right, #dc3545 0%, #ffc107 33%, #0dcaf0 66%, #198754 100%);
+                                            border-radius: 10px;
+                                            position: relative;
+                                            margin-top: 20px;
+                                        ">
+                                            <div class="slider-handle" style="
+                                                position: absolute;
+                                                top: 50%;
+                                                left: ${data.buy_recommendation.position}%;
+                                                transform: translate(-50%, -50%);
+                                                width: 30px;
+                                                height: 30px;
+                                                background: white;
+                                                border: 3px solid #1a73e8;
+                                                border-radius: 50%;
+                                                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                                                z-index: 10;
+                                            "></div>
+                                            <div class="slider-label" style="
+                                                position: absolute;
+                                                top: -25px;
+                                                left: ${data.buy_recommendation.position}%;
+                                                transform: translateX(-50%);
+                                                font-weight: bold;
+                                                color: #1a73e8;
+                                                white-space: nowrap;
+                                            ">${data.buy_recommendation.recommendation}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="analysis-box p-3" style="
+                                    background: #f8f9fa;
+                                    border-left: 4px solid #1a73e8;
+                                    border-radius: 8px;
+                                    height: 100%;
+                                ">
+                                    <p class="mb-2" style="line-height: 1.6;">
+                                        Based on our analysis and observation, there is <strong>${data.buy_recommendation.probability.toFixed(2)}%</strong> chance that the price of <strong>${data.ticker}</strong> will increase.
+                                    </p>
+                                    <p class="mb-0" style="line-height: 1.6; font-size: 0.9em; color: #6c757d;">
+                                        Price of ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'stock'} might fluctuate between <strong>${data.buy_recommendation.fluctuation_min}%</strong> and <strong>${data.buy_recommendation.fluctuation_max}%</strong> of current price.*
+                                    </p>
+                                    <div class="mt-2 pt-2" style="border-top: 1px solid #dee2e6;">
+                                        <small class="text-muted">
+                                            Current Price: ₹${parseFloat(data.current_price).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}<br>
+                                            Avg Predicted: ₹${data.buy_recommendation.avg_predicted_price.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} 
+                                            (${data.buy_recommendation.price_change_percent >= 0 ? '+' : ''}${data.buy_recommendation.price_change_percent.toFixed(2)}%)
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="chart-container">
+                    <div style="display:flex; justify-content: space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <h3>📊 ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'} Prediction Chart (Historical & Forecast)</h3>
+                        ${years.length > 0 ? `
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <div id="yearButtons" style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <button class="btn" data-year="" style="padding:8px 12px; background:#fff; border:2px solid #667eea; color:#667eea; border-radius:8px; ${selectedYear===null?'background:#667eea;color:#fff;':''}">All</button>
+                                ${years.filter(y => y >= 2020).sort((a,b)=>b-a).map(y => `
+                                    <button class="btn" data-year="${y}" style="padding:8px 12px; background:#fff; border:2px solid #667eea; color:#667eea; border-radius:8px; ${selectedYear===y?'background:#667eea;color:#fff;':''}">${y}</button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <canvas id="mainChart"></canvas>
+                </div>
+
+                ${years.length > 0 ? `
+                <div class="chart-container">
+                    <h3>📅 Year-Wise Predictions</h3>
+                    <div class="year-selector" id="yearSelector"></div>
+                    <canvas id="yearChart"></canvas>
+                </div>
+                ` : ''}
+
+                <div class="predictions-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Year</th>
+                                <th>Predicted ${data.asset_type === 'Mutual Fund' ? 'NAV' : 'Price'}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="predictionsTableBody">
+                            ${tableRows}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${totalItems > itemsPerPage && !showAllMode ? `
+                <div class="pagination">
+                    <button onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+                    <button onclick="changePage(${Math.max(1, currentPage - 1)})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+                    <span class="pagination-info">Page ${currentPage} of ${totalPages} (${totalItems} items)</span>
+                    <button onclick="changePage(${Math.min(totalPages, currentPage + 1)})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                    <button onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+                    <button class="show-all" onclick="toggleShowAll()">Show All</button>
+                </div>
+                ` : totalItems > itemsPerPage && showAllMode ? `
+                <div class="pagination">
+                    <button onclick="toggleShowAll()" class="show-all">Show Paginated View</button>
+                    <span class="pagination-info">Showing all ${totalItems} items</span>
+                </div>
+                ` : ''}
+
+                <div class="download-section">
+                    <button class="btn btn-success" onclick="downloadCSV('${data.ticker}')">
+                        📥 Download Predictions CSV
+                    </button>
+                </div>
+            `;
+
+            // Draw main chart
+            drawMainChart(data);
+            
+            // Draw year-wise chart if years available
+            if (years.length > 0) {
+                drawYearSelector(years);
+                drawYearChart(data, years[0]);
+            }
+
+            // Hook year buttons
+            const yearButtons = document.getElementById('yearButtons');
+            if (yearButtons) {
+                yearButtons.querySelectorAll('button').forEach(btn => {
+                    btn.onclick = () => {
+                        const yr = btn.getAttribute('data-year');
+                        selectedYear = yr ? parseInt(yr) : null;
+                        currentPage = 1;
+                        renderTable(currentData);
+                    };
+                });
+            }
+
+            window.placeOrderInline = async function(assetType, side, symbol){
+                try {
+                    const qtyEl = document.getElementById('tradeQty');
+                    const priceEl = document.getElementById('tradePrice');
+                    const quantity = parseFloat(qtyEl.value);
+                    const price = parseFloat(priceEl.value);
+                    if (!symbol || !(quantity>0) || !(price>0)){
+                        alert('Please enter valid quantity and price.');
+                        return;
+                    }
+                    const res = await fetch('/orders', {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ asset_type: assetType, symbol, side, quantity, price })
+                    });
+                    const resp = await res.json();
+                    if(!res.ok){
+                        alert(resp.error || 'Order failed');
+                        return;
+                    }
+                    alert('Order placed successfully');
+                } catch(err){
+                    console.error(err);
+                    alert('Order failed');
+                }
+            }
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            renderTable(currentData);
+            // Scroll to top of table
+            document.getElementById('predictionsTableBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function toggleShowAll() {
+            showAllMode = !showAllMode;
+            currentPage = 1;
+            renderTable(currentData);
+            document.getElementById('predictionsTableBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function drawMainChart(data) {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+
+            // Prepare historical data
+            const historical = data.historical || [];
+            const predictions = data.predictions;
+
+            const historicalDates = historical.map(h => h.Date);
+            const historicalPrices = historical.map(h => h.Close);
+
+            const predictionDates = predictions.map(p => p.Date);
+            const predictionPrices = predictions.map(p => p.Predicted_Price);
+
+            // Determine colors based on ticker
+            let historicalColor, predictedColor;
+            if (data.ticker === 'GLD') {
+                historicalColor = '#ffd700'; // Gold
+                predictedColor = '#ffed4e'; // Lighter gold for predictions
+            } else if (data.ticker === 'SILVER') {
+                historicalColor = '#c0c0c0'; // Silver
+                predictedColor = '#e8e8e8'; // Lighter silver for predictions
+            } else {
+                historicalColor = 'rgb(75, 192, 192)'; // Default green
+                predictedColor = 'rgb(255, 99, 132)'; // Default red
+            }
+
+            charts.push(new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [...historicalDates, ...predictionDates],
+                    datasets: [{
+                        label: 'Historical Price',
+                        data: [...historicalPrices, ...Array(predictionDates.length).fill(null)],
+                        borderColor: historicalColor,
+                        backgroundColor: historicalColor.replace('rgb', 'rgba').replace(')', ', 0.2)'),
+                        borderWidth: 2,
+                        fill: false
+                    }, {
+                        label: 'Predicted Price',
+                        data: [...Array(historicalDates.length).fill(null), ...predictionPrices],
+                        borderColor: predictedColor,
+                        backgroundColor: predictedColor.replace('rgb', 'rgba').replace(')', ', 0.2)'),
+                        borderWidth: 2,
+                        fill: false,
+                        borderDash: [5, 5]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Historical & Predicted Stock Prices'
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        function drawYearSelector(years) {
+            const selector = document.getElementById('yearSelector');
+            selector.innerHTML = '';
+            
+            years.forEach((year, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'year-btn' + (index === 0 ? ' active' : '');
+                btn.textContent = year;
+                btn.onclick = () => {
+                    document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    drawYearChart(currentData, year);
+                };
+                selector.appendChild(btn);
+            });
+        }
+
+        function drawYearChart(data, year) {
+            // Destroy existing year chart
+            if (charts.length > 1) {
+                charts[charts.length - 1].destroy();
+                charts = charts.slice(0, -1);
+            }
+
+            const filteredData = data.predictions.filter(p => p.Year === year);
+            
+            if (filteredData.length === 0) return;
+            
+            const ctx = document.getElementById('yearChart').getContext('2d');
+            
+            charts.push(new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: filteredData.map(p => new Date(p.Date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: `Predicted Price for ${year}`,
+                        data: filteredData.map(p => p.Predicted_Price),
+                        borderColor: 'rgb(102, 126, 234)',
+                        backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Price Predictions for Year ${year}`
+                        },
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+
+        async function downloadCSV(ticker) {
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        ticker: ticker,
+                        forecast_days: currentData.forecast_days 
+                    })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${ticker}_predictions.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Error downloading file');
+                }
+            } catch (error) {
+                alert('Error downloading file');
+                console.error('Error:', error);
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
