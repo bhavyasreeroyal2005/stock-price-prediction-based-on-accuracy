@@ -129,6 +129,93 @@ def get_stock_data_from_groww(ticker_symbol):
         print(f"Error fetching data for {ticker_symbol}: {e}")
         return None, f"Error fetching data for {ticker_symbol}: {str(e)}"
 
+def fetch_live_stock_quote(ticker_symbol):
+    """
+    Fetch the latest tradable price, change and range information for a symbol.
+    """
+    if not ticker_symbol:
+        return None, "Symbol is required"
+
+    if ticker_symbol.isdigit():
+        return None, "Live tick stream is available only for listed stocks right now."
+
+    ticker_variants = []
+    if '.' not in ticker_symbol:
+        ticker_variants = [f"{ticker_symbol}.NS", f"{ticker_symbol}.BO", ticker_symbol.upper()]
+    else:
+        ticker_variants = [ticker_symbol.upper()]
+
+    last_error = None
+    for variant in ticker_variants:
+        try:
+            ticker = yf.Ticker(variant)
+            try:
+                hist = ticker.history(period="1d", interval="1m", auto_adjust=True, prepost=False)
+                if hist.empty:
+                    hist = ticker.history(period="5d", interval="5m", auto_adjust=True, prepost=False)
+            except Exception as history_error:
+                print(f"History fetch failed for {variant}: {history_error}")
+                hist = pd.DataFrame()
+
+            if hist.empty:
+                continue
+
+            last_row = hist.iloc[-1]
+            prev_row = hist.iloc[-2] if len(hist) > 1 else last_row
+
+            price = float(last_row.get('Close') or last_row.get('close'))
+            prev_close = float(prev_row.get('Close') or prev_row.get('close') or price)
+            open_price = float(last_row.get('Open') or last_row.get('open') or price)
+            day_high = float(hist.get('High', pd.Series([price])).max())
+            day_low = float(hist.get('Low', pd.Series([price])).min())
+            volume = float(last_row.get('Volume') or last_row.get('volume') or 0)
+
+            try:
+                fast_info = ticker.fast_info or {}
+            except Exception:
+                fast_info = {}
+
+            currency = fast_info.get('currency')
+            exchange = fast_info.get('exchange') or fast_info.get('market')
+            market_state = fast_info.get('market_state') or fast_info.get('marketState')
+
+            if not currency:
+                try:
+                    info = ticker.info or {}
+                except Exception:
+                    info = {}
+                currency = info.get('currency') or 'INR'
+                if not exchange:
+                    exchange = info.get('exchange') or info.get('fullExchangeName')
+                if not market_state:
+                    market_state = info.get('marketState')
+
+            change = price - prev_close
+            change_percent = round((change / prev_close) * 100, 2) if prev_close else None
+
+            return {
+                'symbol': variant,
+                'price': round(price, 2),
+                'previous_close': round(prev_close, 2),
+                'open': round(open_price, 2),
+                'day_high': round(day_high, 2),
+                'day_low': round(day_low, 2),
+                'change': round(change, 2),
+                'change_percent': change_percent,
+                'currency': currency or 'INR',
+                'exchange': exchange,
+                'market_state': market_state,
+                'volume': int(volume) if volume else None,
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'source': 'yfinance'
+            }, None
+        except Exception as e:
+            print(f"Live quote fetch failed for {variant}: {e}")
+            last_error = str(e)
+            continue
+
+    return None, last_error or f"Unable to fetch live data for {ticker_symbol}. Please try again."
+
 def get_mutual_fund_data(scheme_code):
     """
     Fetch mutual fund data using mftool library.
@@ -1687,6 +1774,20 @@ def get_live_prices():
             'gold': {'price': None, 'change': None, 'change_percent': None},
             'silver': {'price': None, 'change': None, 'change_percent': None}
         }), 500
+
+@app.route('/api/live-stock-price')
+@login_required
+def live_stock_price():
+    """Return a Groww-like live quote card payload for a requested symbol."""
+    symbol = request.args.get('symbol', '').strip()
+    if not symbol:
+        return jsonify({'success': False, 'error': 'Symbol is required'}), 400
+
+    data, error = fetch_live_stock_quote(symbol)
+    if error or data is None:
+        return jsonify({'success': False, 'error': error or 'Unable to fetch live data'}), 400
+
+    return jsonify({'success': True, **data})
 
 def create_tables():
     """Create database tables"""
